@@ -33,6 +33,7 @@ import { Button } from '@gitroom/react/form/button';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { PostComment } from '@gitroom/frontend/components/new-launch/providers/high.order.provider';
 import WordpressProvider from '@gitroom/frontend/components/new-launch/providers/wordpress/wordpress.provider';
+import PayloadProvider from '@gitroom/frontend/components/new-launch/providers/payload/payload.provider';
 import ListmonkProvider from '@gitroom/frontend/components/new-launch/providers/listmonk/listmonk.provider';
 import GmbProvider from '@gitroom/frontend/components/new-launch/providers/gmb/gmb.provider';
 import MoltbookProvider from '@gitroom/frontend/components/new-launch/providers/moltbook/moltbook.provider';
@@ -153,6 +154,10 @@ export const Providers = [
   {
     identifier: 'wordpress',
     component: WordpressProvider,
+  },
+  {
+    identifier: 'payload',
+    component: PayloadProvider,
   },
   {
     identifier: 'listmonk',

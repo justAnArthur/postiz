@@ -860,8 +860,31 @@ export class PostsService {
       });
   }
 
-  async deletePost(orgId: string, group: string) {
+  // deleteFromPlatform: also remove a published post from platforms that can
+  // delete, only for a person deleting the post itself (not a channel removal)
+  async deletePost(orgId: string, group: string, deleteFromPlatform = false) {
+    const published = deleteFromPlatform
+      ? (await this._postRepository.getPostsByGroup(orgId, group)).filter(
+          (p) => !p.parentPostId && p.state === 'PUBLISHED' && p.releaseId
+        )
+      : [];
     const post = await this._postRepository.deletePost(orgId, group);
+
+    for (const p of published) {
+      const provider = this._integrationManager.getSocialIntegration(
+        p.integration.providerIdentifier
+      );
+      try {
+        await provider?.deletePost?.(
+          p.integration.token,
+          p.releaseId,
+          JSON.parse(p.settings || '{}'),
+          p.integration
+        );
+      } catch (err) {
+        console.log('Could not delete the post from the platform', err);
+      }
+    }
 
     if (post?.id) {
       try {
@@ -1119,6 +1142,7 @@ export class PostsService {
     keepGroup = false
   ): Promise<any[]> {
     const postList = [];
+    const editErrors: string[] = [];
     const batchId = uuidv4();
     for (const post of body.posts) {
       if (
@@ -1174,6 +1198,13 @@ export class PostsService {
         posts.filter((p) => existingIds.includes(p.id))
       );
 
+      if (body.type === 'update') {
+        const error = await this.editPublished(orgId, posts[0]);
+        if (error) {
+          editErrors.push(error);
+        }
+      }
+
       if (body.type !== 'update') {
         this.startWorkflow(
           post.settings.__type.split('-')[0].toLowerCase(),
@@ -1190,7 +1221,63 @@ export class PostsService {
       });
     }
 
+    if (editErrors.length) {
+      throw new BadRequestException(editErrors.join('\n'));
+    }
+
     return postList;
+  }
+
+  // A published post saved with type "update" is edited in place on platforms
+  // that can edit. Returns the error to show, the post itself is saved anyway.
+  private async editPublished(orgId: string, post: Post) {
+    if (post.state !== 'PUBLISHED' || !post.releaseId) {
+      return;
+    }
+
+    const integration = await this._integrationService.getIntegrationById(
+      orgId,
+      post.integrationId
+    );
+    const provider = this._integrationManager.getSocialIntegration(
+      integration?.providerIdentifier
+    );
+    if (!provider?.editPost) {
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(post.settings || '{}');
+      const { postId, releaseURL } = await provider.editPost(
+        integration.token,
+        post.releaseId,
+        {
+          id: post.id,
+          message: stripHtmlValidation(
+            provider.editor,
+            post.content,
+            true,
+            false,
+            !/<\/?[a-z][\s\S]*>/i.test(post.content),
+            provider.mentionFormat,
+            !!provider.inlineImages?.(settings)
+          ),
+          settings,
+          media: await this.updateMedia(
+            post.id,
+            JSON.parse(post.image || '[]'),
+            provider.convertToJPEG || false
+          ),
+        },
+        integration
+      );
+      await this.updateResolvedRelease(post.id, orgId, postId, releaseURL);
+    } catch (err) {
+      console.log('Could not edit the published post', err);
+      return `The post was saved, but ${
+        provider.name
+      } did not apply the edit: ${(err as Error)?.message || 'Unknown Error'}`;
+    }
   }
 
   // Update ONLY the provider settings of a not-yet-published post (scheduled or

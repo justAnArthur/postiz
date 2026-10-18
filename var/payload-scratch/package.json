@@ -1,0 +1,16 @@
+{
+  "name": "payload-scratch",
+  "private": true,
+  "type": "module",
+  "description": "A throwaway Payload (sqlite) the Payload provider tests publish to",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@payloadcms/db-sqlite": "3.84.1",
+    "@payloadcms/richtext-lexical": "3.84.1",
+    "graphql": "16.11.0",
+    "payload": "3.84.1",
+    "sharp": "0.34.3"
+  }
+}
