@@ -121,6 +121,20 @@ export interface ISocialMediaIntegration {
     postDetails: PostDetails[],
     integration: Integration
   ): Promise<PostResponse[]>; // Schedules a new post
+
+  editPost?(
+    accessToken: string,
+    releaseId: string,
+    postDetails: PostDetails,
+    integration: Integration
+  ): Promise<{ postId: string; releaseURL: string }>; // Applies an edit of a published post to the platform
+
+  deletePost?(
+    accessToken: string,
+    releaseId: string,
+    settings: any,
+    integration: Integration
+  ): Promise<void>; // Removes a published post from the platform
 }
 
 export type PostResponse = {
