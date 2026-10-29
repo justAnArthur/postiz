@@ -527,7 +527,7 @@ export const MediaBox: FC<{
       !(await deleteDialog(
         t(
           'delete_unused_media',
-          'Delete every unused file shown here? Files uploaded in the last hour are kept, in case they are about to go on a post.'
+          'Delete every unused file shown here? Files uploaded in the last hour are kept, in case they are about to go on a post, and so is raw material named raw-… (clips and photos waiting for their edit).'
         )
       ))
     ) {
