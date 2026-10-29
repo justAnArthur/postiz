@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -27,6 +28,11 @@ import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { VideoFunctionDto } from '@gitroom/nestjs-libraries/dtos/videos/video.function.dto';
 import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
 import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
+import {
+  CreateMediaFolderDto,
+  MoveMediaDto,
+  UpdateMediaFolderDto,
+} from '@gitroom/nestjs-libraries/dtos/media/media.folder.dto';
 
 @ApiTags('Media')
 @Controller('/media')
@@ -37,7 +43,39 @@ export class MediaController {
     private _subscriptionService: SubscriptionService
   ) {}
 
-  // before '/:id', which would take 'unused' for an id
+  // these come before '/:endpoint' and '/:id', which would take their names for an id
+  @Get('/folders')
+  getFolders(@GetOrgFromRequest() org: Organization) {
+    return this._mediaService.getFolders(org.id);
+  }
+
+  @Post('/folders')
+  saveFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: CreateMediaFolderDto
+  ) {
+    return this._mediaService.saveFolder(org.id, body);
+  }
+
+  @Put('/folders/:id')
+  updateFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: UpdateMediaFolderDto
+  ) {
+    return this._mediaService.updateFolder(org.id, id, body);
+  }
+
+  @Delete('/folders/:id')
+  deleteFolder(@GetOrgFromRequest() org: Organization, @Param('id') id: string) {
+    return this._mediaService.deleteFolder(org.id, id);
+  }
+
+  @Post('/move')
+  moveMedia(@GetOrgFromRequest() org: Organization, @Body() body: MoveMediaDto) {
+    return this._mediaService.moveMedia(org.id, body);
+  }
+
   @Delete('/unused')
   deleteUnused(
     @GetOrgFromRequest() org: Organization,
@@ -206,7 +244,7 @@ export class MediaController {
       org.id,
       query.page,
       query.search,
-      query.usage
+      query
     );
   }
 

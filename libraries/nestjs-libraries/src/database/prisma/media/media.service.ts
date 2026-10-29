@@ -3,10 +3,15 @@ import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { generationError } from '@gitroom/nestjs-libraries/openai/generation.error';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
-import { Organization } from '@prisma/client';
+import { Organization, Prisma } from '@prisma/client';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
 import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
 import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
+import {
+  CreateMediaFolderDto,
+  MoveMediaDto,
+  UpdateMediaFolderDto,
+} from '@gitroom/nestjs-libraries/dtos/media/media.folder.dto';
 import { VideoManager } from '@gitroom/nestjs-libraries/videos/video.manager';
 import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
@@ -82,6 +87,19 @@ const USABLE_AS_IS = new Set([
   '.webp',
   '.gif',
 ]);
+
+// P2002: the new name is taken in this org; P2025: no such folder in this org
+function folderError(err: unknown): never {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      throw new BadRequestException('A folder with this name already exists');
+    }
+    if (err.code === 'P2025') {
+      throw new HttpException('Folder not found', 404);
+    }
+  }
+  throw err;
+}
 
 @Injectable()
 export class MediaService {
@@ -464,9 +482,34 @@ export class MediaService {
     org: string,
     page: number,
     search?: string,
-    usage?: GetMediaDto['usage']
+    filter?: Pick<GetMediaDto, 'usage' | 'folder'>
   ) {
-    return this._mediaRepository.getMedia(org, page, search, usage);
+    return this._mediaRepository.getMedia(org, page, search, filter);
+  }
+
+  getFolders(org: string) {
+    return this._mediaRepository.getFolders(org);
+  }
+
+  saveFolder(org: string, body: CreateMediaFolderDto) {
+    return this._mediaRepository.saveFolder(org, body);
+  }
+
+  updateFolder(org: string, id: string, body: UpdateMediaFolderDto) {
+    return this._mediaRepository
+      .updateFolder(org, id, body)
+      .catch(folderError);
+  }
+
+  deleteFolder(org: string, id: string) {
+    return this._mediaRepository.deleteFolder(org, id).catch(folderError);
+  }
+
+  async moveMedia(org: string, { ids, folderId }: MoveMediaDto) {
+    if (folderId && !(await this._mediaRepository.getFolder(org, folderId))) {
+      throw new HttpException('Folder not found', 404);
+    }
+    return this._mediaRepository.moveMedia(org, ids, folderId ?? null);
   }
 
   deleteUnused(org: string, body: DeleteUnusedMediaDto) {

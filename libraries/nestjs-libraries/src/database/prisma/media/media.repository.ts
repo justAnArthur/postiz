@@ -5,6 +5,10 @@ import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/sa
 import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
 import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
 import { mediaUsage } from '@gitroom/nestjs-libraries/database/prisma/media/media.usage';
+import {
+  CreateMediaFolderDto,
+  UpdateMediaFolderDto,
+} from '@gitroom/nestjs-libraries/dtos/media/media.folder.dto';
 
 @Injectable()
 export class MediaRepository {
@@ -12,7 +16,8 @@ export class MediaRepository {
     private _media: PrismaRepository<'media'>,
     private _post: PrismaRepository<'post'>,
     private _sets: PrismaRepository<'sets'>,
-    private _signatures: PrismaRepository<'signatures'>
+    private _signatures: PrismaRepository<'signatures'>,
+    private _folders: PrismaRepository<'mediaFolder'>
   ) {}
 
   saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
@@ -182,7 +187,7 @@ export class MediaRepository {
     org: string,
     page: number,
     search?: string,
-    filter?: GetMediaDto['usage']
+    { usage: filter, folder }: Pick<GetMediaDto, 'usage' | 'folder'> = {}
   ) {
     const pageNum = (page || 1) - 1;
     const trimmedSearch = search?.trim();
@@ -210,6 +215,7 @@ export class MediaRepository {
       status: { not: 'processing' },
       ...searchFilter,
       ...usageFilter,
+      ...(folder && { folderId: folder === 'none' ? null : folder }),
     };
     const pages = Math.ceil((await this._media.model.media.count({ where })) / 18);
     const results = await this._media.model.media.findMany({
@@ -226,6 +232,7 @@ export class MediaRepository {
         alt: true,
         thumbnailTimestamp: true,
         createdAt: true,
+        folderId: true,
       },
       skip: pageNum * 18,
       take: 18,
@@ -262,5 +269,55 @@ export class MediaRepository {
       data: { deletedAt: new Date() },
     });
     return { deleted: count };
+  }
+
+  getFolders(org: string) {
+    return this._folders.model.mediaFolder.findMany({
+      where: { organizationId: org },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        note: true,
+        _count: { select: { media: { where: { deletedAt: null } } } },
+      },
+    });
+  }
+
+  // a name is unique in an org, so saving an existing name returns that folder
+  saveFolder(org: string, { name, note }: CreateMediaFolderDto) {
+    return this._folders.model.mediaFolder.upsert({
+      where: { organizationId_name: { organizationId: org, name } },
+      create: { organizationId: org, name, note },
+      update: note === undefined ? {} : { note },
+    });
+  }
+
+  updateFolder(org: string, id: string, data: UpdateMediaFolderDto) {
+    return this._folders.model.mediaFolder.update({
+      where: { id, organizationId: org },
+      data,
+    });
+  }
+
+  // its files stay in the library, out of any folder
+  deleteFolder(org: string, id: string) {
+    return this._folders.model.mediaFolder.delete({
+      where: { id, organizationId: org },
+    });
+  }
+
+  getFolder(org: string, id: string) {
+    return this._folders.model.mediaFolder.findFirst({
+      where: { id, organizationId: org },
+    });
+  }
+
+  async moveMedia(org: string, ids: string[], folderId: string | null) {
+    const { count } = await this._media.model.media.updateMany({
+      where: { id: { in: ids }, organizationId: org, deletedAt: null },
+      data: { folderId },
+    });
+    return { moved: count };
   }
 }

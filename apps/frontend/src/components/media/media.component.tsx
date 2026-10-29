@@ -55,6 +55,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useDebounce } from 'use-debounce';
 import Link from 'next/link';
+import {
+  FolderFilter,
+  FolderList,
+  FolderNote,
+  FolderSelect,
+  useMediaFolders,
+} from '@gitroom/frontend/components/media/media.folders';
 import dayjs from 'dayjs';
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
@@ -259,12 +266,18 @@ export const MediaBox: FC<{
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
   const [usage, setUsage] = useState<MediaUsage>('all');
+  const [folder, setFolder] = useState<FolderFilter>();
+  // the uploader is built once, so it reads the open folder through a ref
+  const folderRef = useRef<FolderFilter>(undefined);
+  folderRef.current = folder;
+  const { data: folders = [], mutate: mutateFolders } = useMediaFolders();
+  const openFolder = folders.find((f) => f.id === folder);
   const fetch = useFetch();
   const modals = useModals();
   const toaster = useToaster();
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch, usage]);
+  }, [debouncedSearch, usage, folder]);
   const loadMedia = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page + 1) });
     if (debouncedSearch.trim()) {
@@ -273,11 +286,25 @@ export const MediaBox: FC<{
     if (usage !== 'all') {
       params.set('usage', usage);
     }
+    if (folder) {
+      params.set('folder', folder);
+    }
     return (await fetch(`/media?${params.toString()}`)).json();
-  }, [page, debouncedSearch, usage]);
+  }, [page, debouncedSearch, usage, folder]);
   const { data, mutate, isLoading } = useSWR(
-    `get-media-${page}-${debouncedSearch}-${usage}`,
+    `get-media-${page}-${debouncedSearch}-${usage}-${folder}`,
     loadMedia
+  );
+
+  const moveMedia = useCallback(
+    async (ids: string[], folderId: string | null) => {
+      await fetch('/media/move', {
+        method: 'POST',
+        body: JSON.stringify({ ids, folderId }),
+      });
+      await Promise.all([mutate(), mutateFolders()]);
+    },
+    [mutate, mutateFolders]
   );
   const [selected, setSelected] = useState([]);
   const t = useT();
@@ -293,6 +320,13 @@ export const MediaBox: FC<{
         ? 'video/mp4'
         : 'image/*,video/mp4',
     onUploadSuccess: async (arr) => {
+      const into = folderRef.current;
+      if (into && into !== 'none') {
+        await moveMedia(
+          arr.map((media: any) => media.id),
+          into
+        );
+      }
       await mutate();
       if (standalone) {
         return;
@@ -320,9 +354,6 @@ export const MediaBox: FC<{
 
   const addRemoveSelected = useCallback(
     (media: any) => () => {
-      if (standalone) {
-        return;
-      }
       const exists = selected.find((p: any) => p.id === media.id);
       if (exists) {
         setSelected(selected.filter((f: any) => f.id !== media.id));
@@ -521,6 +552,15 @@ export const MediaBox: FC<{
     mutate();
   }, [debouncedSearch, mutate, t, toaster]);
 
+  const moveSelected = useCallback(
+    async (target: string) => {
+      const ids = selected.map((media: any) => media.id);
+      setSelected([]);
+      await moveMedia(ids, target === 'none' ? null : target);
+    },
+    [selected, moveMedia]
+  );
+
   const usageFilters: { value: MediaUsage; label: string }[] = [
     { value: 'all', label: t('all_media', 'All') },
     { value: 'used', label: t('media_in_posts', 'In posts') },
@@ -548,7 +588,18 @@ export const MediaBox: FC<{
 
   return (
     <DropFiles disabled={loading} className="flex flex-col flex-1" onDrop={dragAndDrop}>
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-1 gap-[20px] mobile:flex-col">
+      {standalone && (
+        <div className="flex mobile:hidden">
+          <FolderList
+            folders={folders}
+            current={folder}
+            onSelect={setFolder}
+            onChanged={() => mutateFolders()}
+          />
+        </div>
+      )}
+      <div className="flex flex-col flex-1 min-w-0">
         <div
           className={clsx(
             'flex items-center gap-[12px] mobile:flex-wrap',
@@ -556,6 +607,7 @@ export const MediaBox: FC<{
               !data?.results?.length &&
               !debouncedSearch &&
               usage === 'all' &&
+              !folder &&
               'hidden'
           )}
         >
@@ -568,6 +620,31 @@ export const MediaBox: FC<{
               className="w-full h-[44px] px-[14px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#612BD3]"
             />
           </div>
+          <FolderSelect
+            folders={folders}
+            current={folder}
+            onSelect={setFolder}
+            className={clsx(standalone && 'hidden mobile:block')}
+          />
+          {standalone && !!selected.length && (
+            <select
+              value=""
+              onChange={(e) => e.target.value && moveSelected(e.target.value)}
+              className="h-[44px] px-[10px] rounded-[8px] bg-[#612BD3] text-white text-[14px] outline-none"
+            >
+              <option value="">
+                {t('move_media_to', 'Move {{count}} to…', {
+                  count: selected.length,
+                })}
+              </option>
+              <option value="none">{t('media_no_folder', 'No folder')}</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex h-[44px] p-[4px] gap-[4px] rounded-[8px] border border-newColColor text-[14px]">
             {usageFilters.map((filter) => (
               <button
@@ -664,7 +741,7 @@ export const MediaBox: FC<{
               <>
                 <NoMediaIcon />
                 <div className="text-[20px] font-[600]">
-                  {debouncedSearch || usage !== 'all'
+                  {debouncedSearch || usage !== 'all' || folder
                     ? t(
                         'no_media_match_search',
                         'No media matches your search'
@@ -826,6 +903,10 @@ export const MediaBox: FC<{
             )}
           </div>
         )}
+      </div>
+      {standalone && openFolder && (
+        <FolderNote folder={openFolder} onChanged={() => mutateFolders()} />
+      )}
       </div>
     </DropFiles>
   );
