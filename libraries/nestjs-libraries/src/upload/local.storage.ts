@@ -5,6 +5,7 @@ import { pipeline } from 'stream/promises';
 import { isSafePublicHttpsUrl } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.url.validator';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { parseDataUrl } from '@gitroom/nestjs-libraries/upload/data.url';
+import { isActiveContent } from './custom.upload.validation';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fileTypeFromBuffer } = require('file-type');
 
@@ -17,7 +18,6 @@ const LOCAL_STORAGE_ALLOWED_MIME = new Set<string>([
   'image/bmp',
   'image/tiff',
   'video/mp4',
-  'video/quicktime',
   'audio/mpeg',
   'audio/mp4',
   'audio/wav',
@@ -113,7 +113,8 @@ export class LocalStorage implements IUploadProvider {
     ext: string
   ): Promise<UploadedStream> {
     try {
-      if (!LOCAL_STORAGE_ALLOWED_MIME.has(mimetype)) {
+      // the media library's streamed uploads take any file storedType() let through
+      if (isActiveContent(mimetype)) {
         throw new Error('Unsupported file type.');
       }
 
