@@ -4,27 +4,36 @@ import { IUploadProvider } from './upload.interface';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fileTypeStream } = require('file-type');
 
-// What users may put in the media library, whether by multipart upload or
-// from a remote URL; narrower than what storage itself accepts, no audio
-export const UPLOAD_ALLOWED_MIME = new Set<string>([
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/avif',
-  'image/bmp',
-  'image/tiff',
-  'video/mp4',
+// The media library takes any file: raw clips, photos, documents. Only what a browser
+// would run when the uploads folder serves it from the app's own origin is refused,
+// and a type the sniffer cannot name is stored as an opaque download
+const ACTIVE_MIME = new Set<string>([
+  'text/html',
+  'application/xhtml+xml',
+  'image/svg+xml',
+  'application/xml',
+  'text/xml',
+  'application/javascript',
+  'text/javascript',
 ]);
+const OPAQUE = { mime: 'application/octet-stream', ext: 'bin' };
+
+export const isActiveContent = (mime: string) => ACTIVE_MIME.has(mime);
+
+/** The type a file is stored as: what its bytes say, or an opaque download. */
+export function storedType(detected?: { mime: string; ext: string }) {
+  if (!detected) return OPAQUE;
+  if (isActiveContent(detected.mime)) {
+    throw new BadRequestException('Unsupported file type.');
+  }
+  return detected;
+}
 
 export function getMaxSize(mimeType: string): number {
   if (mimeType.startsWith('image/')) {
-    return 10 * 1024 * 1024; // 10 MB
-  } else if (mimeType.startsWith('video/')) {
-    return 1024 * 1024 * 1024; // 1 GB
-  } else {
-    throw new BadRequestException('Unsupported file type.');
+    return 100 * 1024 * 1024; // 100 MB: a phone's raw photo
   }
+  return 1024 * 1024 * 1024; // 1 GB
 }
 
 // Passes bytes through and fails once they exceed maxSize, so a body with a
@@ -59,10 +68,12 @@ export async function uploadStreamToStorage(
   } catch (err) {
     throw new BadRequestException('Failed to read file', { cause: err });
   }
-  const detected = sniffed.fileType;
-  if (!detected || !UPLOAD_ALLOWED_MIME.has(detected.mime)) {
+  let detected: { mime: string; ext: string };
+  try {
+    detected = storedType(sniffed.fileType);
+  } catch (err) {
     await sniffed.cancel();
-    throw new BadRequestException('Unsupported file type.');
+    throw err;
   }
 
   const maxSize = getMaxSize(detected.mime);

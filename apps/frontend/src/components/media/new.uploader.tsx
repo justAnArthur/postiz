@@ -75,6 +75,11 @@ export function useUppyUploader(props: {
     uppy2.addPreProcessor((fileIDs) => {
       return new Promise<void>((resolve, reject) => {
         const files = uppy2.getFiles();
+        // '*': the media library takes any file; the server refuses only active content
+        if (allowedFileTypes.trim() === '*') {
+          resolve();
+          return;
+        }
         const allowedTypes = allowedFileTypes
           .split(',')
           .map((type) => type.trim());

@@ -256,6 +256,25 @@ const PostBadge: FC<{ posts: MediaPost[]; link: boolean }> = ({
 
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 1024; // 1 GB
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm'];
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp'];
+const extensionOf = (path?: string) =>
+  (path ?? '').split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+
+/** How the library shows a file: it takes any file, and only some of them preview. */
+const previewKind = (path?: string) => {
+  const ext = extensionOf(path);
+  if (VIDEO_EXTENSIONS.includes(ext)) return 'video';
+  if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
+  return 'file';
+};
+
+const FileTile: FC<{ path?: string }> = ({ path }) => (
+  <div className="w-full h-full flex items-center justify-center bg-newBgColorInner text-[14px] font-[600] uppercase opacity-70">
+    {extensionOf(path) || 'file'}
+  </div>
+);
+
 export const MediaBox: FC<{
   setMedia: (params: { id: string; path: string }[]) => void;
   standalone?: boolean;
@@ -317,8 +336,8 @@ export const MediaBox: FC<{
       type == 'image'
         ? 'image/*'
         : type == 'video'
-        ? 'video/mp4'
-        : 'image/*,video/mp4',
+        ? 'video/*'
+        : '*',
     onUploadSuccess: async (arr) => {
       const into = folderRef.current;
       if (into && into !== 'none') {
@@ -449,11 +468,13 @@ export const MediaBox: FC<{
         top: 10,
         children: (
           <div className="w-full h-full p-[50px]">
-            {hasExtension(media.path, 'mp4') ? (
+            {previewKind(media.path) === 'video' ? (
               <VideoFrame
                 autoplay={true}
                 url={mediaDirectory.set(media.path)}
               />
+            ) : previewKind(media.path) === 'file' ? (
+              <FileTile path={media.path} />
             ) : (
               <img
                 width="100%"
@@ -854,8 +875,10 @@ export const MediaBox: FC<{
                           </svg>
                         </div>
                       </div>
-                      {hasExtension(media.path, 'mp4') ? (
+                      {previewKind(media.path) === 'video' ? (
                         <VideoFrame url={mediaDirectory.set(media.path)} />
+                      ) : previewKind(media.path) === 'file' ? (
+                        <FileTile path={media.path} />
                       ) : (
                         <img
                           width="100%"
@@ -1106,8 +1129,10 @@ export const MultiMediaComponent: FC<{
                       >
                         <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
                       </div>
-                      {hasExtension(media?.path, 'mp4') ? (
+                      {previewKind(media?.path) === 'video' ? (
                         <VideoFrame url={mediaDirectory.set(media?.path)} />
+                      ) : previewKind(media?.path) === 'file' ? (
+                        <FileTile path={media?.path} />
                       ) : (
                         <img
                           className="w-full h-full object-cover rounded-[4px] mobile:rounded-[8px]"
