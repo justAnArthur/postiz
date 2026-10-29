@@ -10,10 +10,10 @@ import {
   UpdateMediaFolderDto,
 } from '@gitroom/nestjs-libraries/dtos/media/media.folder.dto';
 
-@Injectable()
 /** Files named so are an operator's raw material, kept until someone deletes them by hand. */
 export const RAW_PREFIX = 'raw-';
 
+@Injectable()
 export class MediaRepository {
   constructor(
     private _media: PrismaRepository<'media'>,
