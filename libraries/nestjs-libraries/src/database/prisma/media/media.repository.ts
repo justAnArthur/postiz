@@ -11,6 +11,9 @@ import {
 } from '@gitroom/nestjs-libraries/dtos/media/media.folder.dto';
 
 @Injectable()
+/** Files named so are an operator's raw material, kept until someone deletes them by hand. */
+export const RAW_PREFIX = 'raw-';
+
 export class MediaRepository {
   constructor(
     private _media: PrismaRepository<'media'>,
@@ -258,13 +261,27 @@ export class MediaRepository {
         status: { not: 'processing' },
         createdAt: { lt: new Date(before) },
         id: { notIn: usedIds },
-        ...((search || prefix) && {
-          originalName: {
-            mode: 'insensitive' as const,
-            ...(search && { contains: search }),
-            ...(prefix && { startsWith: prefix }),
+        AND: [
+          // raw material an operator sent (clips, photos) waits for its edit outside any
+          // post, so it is never a leftover
+          {
+            OR: [
+              { originalName: null },
+              { NOT: { originalName: { startsWith: RAW_PREFIX } } },
+            ],
           },
-        }),
+          ...(search || prefix
+            ? [
+                {
+                  originalName: {
+                    mode: 'insensitive' as const,
+                    ...(search && { contains: search }),
+                    ...(prefix && { startsWith: prefix }),
+                  },
+                },
+              ]
+            : []),
+        ],
       },
       data: { deletedAt: new Date() },
     });
