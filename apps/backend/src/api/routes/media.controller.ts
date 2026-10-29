@@ -25,6 +25,8 @@ import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
 import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { VideoFunctionDto } from '@gitroom/nestjs-libraries/dtos/videos/video.function.dto';
+import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
+import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
 
 @ApiTags('Media')
 @Controller('/media')
@@ -34,6 +36,15 @@ export class MediaController {
     private _mediaService: MediaService,
     private _subscriptionService: SubscriptionService
   ) {}
+
+  // before '/:id', which would take 'unused' for an id
+  @Delete('/unused')
+  deleteUnused(
+    @GetOrgFromRequest() org: Organization,
+    @Query() query: DeleteUnusedMediaDto
+  ) {
+    return this._mediaService.deleteUnused(org.id, query);
+  }
 
   @Delete('/:id')
   deleteMedia(@GetOrgFromRequest() org: Organization, @Param('id') id: string) {
@@ -189,10 +200,14 @@ export class MediaController {
   @Get('/')
   getMedia(
     @GetOrgFromRequest() org: Organization,
-    @Query('page') page: number,
-    @Query('search') search?: string
+    @Query() query: GetMediaDto
   ) {
-    return this._mediaService.getMedia(org.id, page, search);
+    return this._mediaService.getMedia(
+      org.id,
+      query.page,
+      query.search,
+      query.usage
+    );
   }
 
   @Get('/video-options')

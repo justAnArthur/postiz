@@ -54,6 +54,8 @@ import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useDebounce } from 'use-debounce';
+import Link from 'next/link';
+import dayjs from 'dayjs';
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
 );
@@ -210,6 +212,41 @@ export const showMediaBox = (
 ) => {
   showModalEmitter.emit('show-modal', callback);
 };
+type MediaUsage = 'all' | 'used' | 'unused';
+type MediaPost = { id: string; publishDate: string; state: string };
+
+// files uploaded within the last hour may still be on their way to a post
+const UNUSED_GRACE_MS = 60 * 60 * 1000;
+
+const PostBadge: FC<{ posts: MediaPost[]; link: boolean }> = ({
+  posts,
+  link,
+}) => {
+  if (!posts.length) {
+    return null;
+  }
+  const day = dayjs(posts[0].publishDate);
+  const date = day.format('YYYY-MM-DD');
+  const label = `${day.format('D MMM')} · ${posts[0].state.toLowerCase()}${
+    posts.length > 1 ? ` +${posts.length - 1}` : ''
+  }`;
+  const className =
+    'absolute top-[8px] start-[8px] z-[100] px-[8px] py-[2px] rounded-[6px] bg-black/60 text-white text-[12px] font-[500]';
+  // the picker sits over the post editor, so only the library page leaves for the calendar
+  if (!link) {
+    return <div className={className}>{label}</div>;
+  }
+  return (
+    <Link
+      href={`/launches?display=day&startDate=${date}&endDate=${date}`}
+      onClick={(e) => e.stopPropagation()}
+      className={clsx(className, 'hover:bg-[#612BD3]')}
+    >
+      {label}
+    </Link>
+  );
+};
+
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 1024; // 1 GB
 export const MediaBox: FC<{
@@ -221,21 +258,25 @@ export const MediaBox: FC<{
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
+  const [usage, setUsage] = useState<MediaUsage>('all');
   const fetch = useFetch();
   const modals = useModals();
   const toaster = useToaster();
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, usage]);
   const loadMedia = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page + 1) });
     if (debouncedSearch.trim()) {
       params.set('search', debouncedSearch.trim());
     }
+    if (usage !== 'all') {
+      params.set('usage', usage);
+    }
     return (await fetch(`/media?${params.toString()}`)).json();
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, usage]);
   const { data, mutate, isLoading } = useSWR(
-    `get-media-${page}-${debouncedSearch}`,
+    `get-media-${page}-${debouncedSearch}-${usage}`,
     loadMedia
   );
   const [selected, setSelected] = useState([]);
@@ -450,6 +491,42 @@ export const MediaBox: FC<{
     }
   }, [selected, mutate, page, t]);
 
+  const deleteUnused = useCallback(async () => {
+    if (
+      !(await deleteDialog(
+        t(
+          'delete_unused_media',
+          'Delete every unused file shown here? Files uploaded in the last hour are kept, in case they are about to go on a post.'
+        )
+      ))
+    ) {
+      return;
+    }
+    const params = new URLSearchParams({
+      before: new Date(Date.now() - UNUSED_GRACE_MS).toISOString(),
+    });
+    if (debouncedSearch.trim()) {
+      params.set('search', debouncedSearch.trim());
+    }
+    const { deleted } = await (
+      await fetch(`/media/unused?${params.toString()}`, { method: 'DELETE' })
+    ).json();
+    toaster.show(
+      t('deleted_unused_media', 'Deleted {{count}} unused files', {
+        count: deleted,
+      }),
+      'success'
+    );
+    setPage(0);
+    mutate();
+  }, [debouncedSearch, mutate, t, toaster]);
+
+  const usageFilters: { value: MediaUsage; label: string }[] = [
+    { value: 'all', label: t('all_media', 'All') },
+    { value: 'used', label: t('media_in_posts', 'In posts') },
+    { value: 'unused', label: t('media_unused', 'Unused') },
+  ];
+
   const btn = useMemo(() => {
     return (
       <button
@@ -478,6 +555,7 @@ export const MediaBox: FC<{
             !isLoading &&
               !data?.results?.length &&
               !debouncedSearch &&
+              usage === 'all' &&
               'hidden'
           )}
         >
@@ -490,6 +568,31 @@ export const MediaBox: FC<{
               className="w-full h-[44px] px-[14px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#612BD3]"
             />
           </div>
+          <div className="flex h-[44px] p-[4px] gap-[4px] rounded-[8px] border border-newColColor text-[14px]">
+            {usageFilters.map((filter) => (
+              <button
+                key={filter.value}
+                onClick={() => setUsage(filter.value)}
+                className={clsx(
+                  'px-[12px] rounded-[6px] whitespace-nowrap',
+                  usage === filter.value
+                    ? 'bg-[#612BD3] text-white'
+                    : 'hover:bg-newColColor'
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          {standalone && usage === 'unused' && !!data?.results?.length && (
+            <button
+              onClick={deleteUnused}
+              className="flex gap-[8px] h-[44px] px-[14px] items-center rounded-[8px] text-[14px] text-[#FF3F3F] border border-[#FF3F3F]/40 hover:bg-[#FF3F3F]/10 whitespace-nowrap"
+            >
+              <TrashIcon size={16} />
+              {t('delete_unused', 'Delete unused')}
+            </button>
+          )}
           <input
             type="file"
             ref={uploaderRef}
@@ -561,7 +664,7 @@ export const MediaBox: FC<{
               <>
                 <NoMediaIcon />
                 <div className="text-[20px] font-[600]">
-                  {debouncedSearch
+                  {debouncedSearch || usage !== 'all'
                     ? t(
                         'no_media_match_search',
                         'No media matches your search'
@@ -628,6 +731,7 @@ export const MediaBox: FC<{
                     )}
                     onClick={addRemoveSelected(media)}
                   >
+                    <PostBadge posts={media.posts || []} link={!!standalone} />
                     {!!selected.find((p: any) => p.id === media.id) ? (
                       <div className="text-white flex z-[101] justify-center items-center text-[14px] font-[500] w-[24px] h-[24px] rounded-full bg-[#612BD3] absolute -bottom-[10px] -end-[10px]">
                         {selected.findIndex((z: any) => z.id === media.id) + 1}

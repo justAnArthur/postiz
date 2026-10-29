@@ -1,4 +1,4 @@
-import { IsOptional, IsNumber, IsString, Min } from 'class-validator';
+import { IsIn, IsOptional, IsNumber, IsString, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class GetMediaDto {
@@ -11,4 +11,8 @@ export class GetMediaDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsIn(['used', 'unused'])
+  usage?: 'used' | 'unused';
 }
