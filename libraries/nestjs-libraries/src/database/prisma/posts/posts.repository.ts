@@ -203,6 +203,7 @@ export class PostsRepository {
         group: true,
         creationMethod: true,
         settings: true,
+        image: true,
         tags: {
           where: {
             tag: {
