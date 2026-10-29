@@ -5,6 +5,8 @@ import { generationError } from '@gitroom/nestjs-libraries/openai/generation.err
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
 import { Organization } from '@prisma/client';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
+import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
+import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
 import { VideoManager } from '@gitroom/nestjs-libraries/videos/video.manager';
 import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
@@ -458,8 +460,17 @@ export class MediaService {
     );
   }
 
-  getMedia(org: string, page: number, search?: string) {
-    return this._mediaRepository.getMedia(org, page, search);
+  getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    usage?: GetMediaDto['usage']
+  ) {
+    return this._mediaRepository.getMedia(org, page, search, usage);
+  }
+
+  deleteUnused(org: string, body: DeleteUnusedMediaDto) {
+    return this._mediaRepository.deleteUnused(org, body);
   }
 
   saveMediaInformation(org: string, data: SaveMediaInformationDto) {

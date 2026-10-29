@@ -36,6 +36,7 @@ import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { VideoFunctionDto } from '@gitroom/nestjs-libraries/dtos/videos/video.function.dto';
 import { UploadDto } from '@gitroom/nestjs-libraries/dtos/media/upload.dto';
 import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
+import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
 import { ClippingDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.dto';
 import { ClippingService } from '@gitroom/nestjs-libraries/database/prisma/clipping/clipping.service';
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
@@ -251,7 +252,8 @@ export class PublicIntegrationsController {
     const { pages, results } = await this._mediaService.getMedia(
       org.id,
       query.page,
-      query.search
+      query.search,
+      query.usage
     );
 
     return {
@@ -264,6 +266,16 @@ export class PublicIntegrationsController {
         createdAt: p.createdAt,
       })),
     };
+  }
+
+  // lets an agent clear its own leftover renders by their name prefix
+  @Delete('/media/unused')
+  async deleteUnusedMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Query() query: DeleteUnusedMediaDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.deleteUnused(org.id, query);
   }
 
   // `user` is only known for OAuth app tokens; an API key belongs to the
