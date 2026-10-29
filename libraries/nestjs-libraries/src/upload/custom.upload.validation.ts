@@ -15,6 +15,8 @@ export const UPLOAD_ALLOWED_MIME = new Set<string>([
   'image/bmp',
   'image/tiff',
   'video/mp4',
+  // a phone's raw clip (iPhone .MOV), kept as it is: an editor cuts it into an mp4
+  'video/quicktime',
 ]);
 
 export function getMaxSize(mimeType: string): number {

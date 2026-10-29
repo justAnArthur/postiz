@@ -317,8 +317,8 @@ export const MediaBox: FC<{
       type == 'image'
         ? 'image/*'
         : type == 'video'
-        ? 'video/mp4'
-        : 'image/*,video/mp4',
+        ? 'video/mp4,video/quicktime'
+        : 'image/*,video/mp4,video/quicktime',
     onUploadSuccess: async (arr) => {
       const into = folderRef.current;
       if (into && into !== 'none') {
