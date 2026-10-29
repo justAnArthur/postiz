@@ -37,6 +37,11 @@ import { VideoFunctionDto } from '@gitroom/nestjs-libraries/dtos/videos/video.fu
 import { UploadDto } from '@gitroom/nestjs-libraries/dtos/media/upload.dto';
 import { GetMediaDto } from '@gitroom/nestjs-libraries/dtos/media/get.media.dto';
 import { DeleteUnusedMediaDto } from '@gitroom/nestjs-libraries/dtos/media/delete.unused.media.dto';
+import {
+  CreateMediaFolderDto,
+  MoveMediaDto,
+  UpdateMediaFolderDto,
+} from '@gitroom/nestjs-libraries/dtos/media/media.folder.dto';
 import { ClippingDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.dto';
 import { ClippingService } from '@gitroom/nestjs-libraries/database/prisma/clipping/clipping.service';
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
@@ -258,7 +263,7 @@ export class PublicIntegrationsController {
       org.id,
       query.page,
       query.search,
-      query.usage
+      query
     );
 
     return {
@@ -269,8 +274,44 @@ export class PublicIntegrationsController {
         originalName: p.originalName,
         path: p.path,
         createdAt: p.createdAt,
+        folderId: p.folderId,
       })),
     };
+  }
+
+  @Get('/media/folders')
+  async getMediaFolders(@GetOrgFromRequest() org: Organization) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.getFolders(org.id);
+  }
+
+  // creating a name that exists returns that folder, so an agent can file into it again
+  @Post('/media/folders')
+  async saveMediaFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: CreateMediaFolderDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.saveFolder(org.id, body);
+  }
+
+  @Put('/media/folders/:id')
+  async updateMediaFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: UpdateMediaFolderDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.updateFolder(org.id, id, body);
+  }
+
+  @Post('/media/move')
+  async moveMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: MoveMediaDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.moveMedia(org.id, body);
   }
 
   // lets an agent clear its own leftover renders by their name prefix

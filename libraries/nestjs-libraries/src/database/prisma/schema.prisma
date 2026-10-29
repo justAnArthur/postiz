@@ -30,6 +30,7 @@ model Organization {
   github              GitHub[]
   Integration         Integration[]
   media               Media[]
+  mediaFolders        MediaFolder[]
   buyerOrganization   MessagesGroup[]
   notifications       Notifications[]
   plugs               Plugs[]
@@ -228,6 +229,8 @@ model Media {
   thumbnailTimestamp Int?
   status             String              @default("ready")
   processingError    String?
+  folderId           String?
+  folder             MediaFolder?        @relation(fields: [folderId], references: [id], onDelete: SetNull)
   organization       Organization        @relation(fields: [organizationId], references: [id])
   agencies           SocialMediaAgency[]
   userPicture        User[]
@@ -236,6 +239,21 @@ model Media {
   @@index([name])
   @@index([organizationId])
   @@index([type])
+  @@index([folderId])
+}
+
+// one level of folders; the note holds what goes with the files, such as a Reel's script
+model MediaFolder {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  note           String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  media          Media[]
+
+  @@unique([organizationId, name])
 }
 
 model SocialMediaAgency {

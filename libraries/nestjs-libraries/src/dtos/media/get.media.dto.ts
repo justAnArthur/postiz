@@ -15,4 +15,9 @@ export class GetMediaDto {
   @IsOptional()
   @IsIn(['used', 'unused'])
   usage?: 'used' | 'unused';
+
+  // a folder id, or 'none' for the files in no folder
+  @IsOptional()
+  @IsString()
+  folder?: string;
 }
