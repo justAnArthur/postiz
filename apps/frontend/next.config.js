@@ -4,6 +4,8 @@ import { withSentryConfig } from '@sentry/nextjs';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
+    // persistent dev cache writes GBs to .next/dev/cache; keep off
+    turbopackFileSystemCacheForDev: false,
     proxyTimeout: 90_000,
   },
   // Document-Policy header for browser profiling
